@@ -92,14 +92,14 @@ function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     // When running locally normally the ws is on the exact same port due to Go HTTP Mux
     const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
+
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
         statusDot.className = 'pulse-dot active';
         statusText.textContent = 'Shield Active & Monitoring';
         statusText.style.color = 'var(--text-primary)';
-        
+
         // Clear events dummy
         eventsBody.innerHTML = '';
     };
@@ -139,14 +139,14 @@ function updateDashboard(stats) {
         statusDot.className = 'pulse-dot danger';
         statusText.textContent = 'UNDER ATTACK - Shield Blocking';
         statusText.style.color = 'var(--accent-red)';
-        
+
         trafficChart.data.datasets[0].borderColor = '#ef4444';
         trafficChart.data.datasets[0].backgroundColor = gradientRed;
     } else {
         statusDot.className = 'pulse-dot active';
         statusText.textContent = 'Traffic Normal';
         statusText.style.color = 'var(--text-primary)';
-        
+
         trafficChart.data.datasets[0].borderColor = '#3b82f6';
         trafficChart.data.datasets[0].backgroundColor = gradientBlue;
     }
@@ -155,14 +155,20 @@ function updateDashboard(stats) {
     const dataset = trafficChart.data.datasets[0].data;
     dataset.shift();
     dataset.push(stats.currentRPS);
-    trafficChart.update('none'); // Update without full animation for performance
+
+    // Shift labels to force the grid to slide left continuously
+    trafficChart.data.labels.shift();
+    trafficChart.data.labels.push('');
+
+    // Animate smoothly to give a sense of continuous lateral movement
+    trafficChart.update();
 
     // Update Events Table
     if (stats.recentEvents && stats.recentEvents.length > 0) {
         // Just recreate the HTML for simplicity since it's capped at 50
         eventsBody.innerHTML = stats.recentEvents.slice(0, 10).map(ev => {
-            const typeColor = ev.type === 'attack_detected' ? 'color: var(--accent-red); font-weight: 600;' : 
-                              (ev.type === 'attack_resolved' ? 'color: var(--accent-green);' : 'color: var(--accent-blue);');
+            const typeColor = ev.type === 'attack_detected' ? 'color: var(--accent-red); font-weight: 600;' :
+                (ev.type === 'attack_resolved' ? 'color: var(--accent-green);' : 'color: var(--accent-blue);');
             return `
                 <tr>
                     <td style="color: var(--text-muted); font-size: 0.9em;">${ev.time}</td>
