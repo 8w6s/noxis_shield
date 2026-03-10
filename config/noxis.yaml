@@ -1,0 +1,39 @@
+server:
+  listen: ":8080"            # Port nhận traffic từ internet
+  upstream: "http://localhost:3000"  # App của người dùng
+  dashboard_port: ":9090"    # WebSocket cho dashboard
+  metrics_port: ":2112"      # Prometheus scrape endpoint
+  admin_port: "127.0.0.1:9091" # Admin management API (Localhost only)
+
+shield:
+  mode: "auto"               # auto | ebpf | userspace
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+
+ratelimit:
+  window_seconds: 10         # Sliding window size
+  max_requests: 100          # Max request trong window
+  subnet_threshold: 5        # Block /24 nếu >= 5 IPs cùng subnet attack
+  adaptive: true             # Tự tăng limit cho IP clean lâu ngày
+
+blocklist:
+  ttl_hours: 24              # Auto-expire sau N giờ
+  abuseipdb_key: ""          # API key AbuseIPDB (để trống nếu không dùng)
+  abuseipdb_threshold: 50    # Score 0-100, block nếu trên ngưỡng này
+
+anomaly:
+  baseline_window_minutes: 60  # Học baseline trong 60 phút đầu
+  zscore_threshold: 3.0        # Trigger alert khi vượt 3 standard deviations
+  max_connections_per_ip: 20   # Slowloris detection
+
+ebpf:
+  enabled: true
+  interface: "eth0"            # Network interface
+  syn_rate_limit: 500          # Max SYN packets/s per IP
+
+log:
+  level: "info"               # debug | info | warn | error
+  format: "json"

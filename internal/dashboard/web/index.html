@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noxis Engine | Shield Dashboard</title>
+    <!-- Modern Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js for premium graphing -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="background-effects">
+        <div class="gradient-sphere sphere-1"></div>
+        <div class="gradient-sphere sphere-2"></div>
+    </div>
+
+    <div class="dashboard-container">
+        <header class="navbar glass-panel">
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span>Noxis Engine</span>
+            </div>
+            <div class="status-indicator">
+                <div class="pulse-dot" id="statusDot"></div>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </header>
+
+        <main class="grid-container">
+            <!-- Top Stats -->
+            <div class="stat-card glass-panel fade-in" style="animation-delay: 0.1s;">
+                <h3>Current Data Flow</h3>
+                <div class="value highlight-blue" id="valRps">0 <span class="unit">req/s</span></div>
+            </div>
+            
+            <div class="stat-card glass-panel fade-in" style="animation-delay: 0.2s;">
+                <h3>Total Intercepted</h3>
+                <div class="value highlight-red" id="valBlocked">0</div>
+            </div>
+            
+            <div class="stat-card glass-panel fade-in" style="animation-delay: 0.3s;">
+                <h3>Active Connections</h3>
+                <div class="value highlight-green" id="valConns">0</div>
+            </div>
+            
+            <div class="stat-card glass-panel fade-in" style="animation-delay: 0.4s;">
+                <h3>Layer 1 Drops (eBPF)</h3>
+                <div class="value" id="valEbpf">0</div>
+            </div>
+
+            <!-- Main Graph Area -->
+            <div class="graph-card glass-panel fade-in" style="animation-delay: 0.5s;">
+                <h3>Real-time Traffic Anatomy</h3>
+                <div class="chart-wrapper">
+                    <canvas id="trafficChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Attack Events Feed -->
+            <div class="events-card glass-panel fade-in" style="animation-delay: 0.6s;">
+                <div class="card-header">
+                    <h3>Shield Telemetry Log</h3>
+                    <span class="badge" id="bannedCount">0 banned IPs</span>
+                </div>
+                <div class="table-container">
+                    <table id="eventsTable">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Event Type</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="eventsBody">
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">Awaiting stream...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

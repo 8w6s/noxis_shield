@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  noxis_shield:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: noxis_engine
+    # To run eBPF, we need privileged mode and host network in many setups
+    # network_mode: "host"
+    # privileged: true
+    ports:
+      - "8080:8080" # Proxy Port
+      - "9090:9090" # Web Dashboard WS/UI Port
+      - "2112:2112" # Prometheus Exporter
+      - "9091:9091" # Admin CLI Port (Local only via host)
+    volumes:
+      - ./config/noxis.yaml:/app/config/noxis.yaml:ro
+    environment:
+      - NOXIS_REDIS_ADDR=redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: noxis_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:
