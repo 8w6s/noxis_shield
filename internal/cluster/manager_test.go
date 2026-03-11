@@ -9,14 +9,8 @@ import (
 // TestClusterEventEncoding verifies ClusterEvent fields are properly set
 func TestClusterEventEncoding(t *testing.T) {
 	ev := ClusterEvent{
-		Type:      EventIPBlocked,
-		NodeID:    "test-node",
-		IP:        "1.2.3.4",
-		Source:    "waf",
-		Reason:    "sqli",
-		Weight:    80,
-		TTL:       3600,
-		Timestamp: time.Now(),
+		Type: EventIPBlocked,
+		IP:   "1.2.3.4",
 	}
 
 	if string(ev.Type) != "ip_blocked" {
@@ -68,7 +62,7 @@ func TestNodeIDGeneration(t *testing.T) {
 
 // TestDefaultChannel verifies config defaults apply
 func TestDefaultConfig(t *testing.T) {
-	cfg := Config{NodeID: "test"}
+	cfg := Config{}
 	if cfg.Channel == "" {
 		cfg.Channel = "noxis:cluster:events"
 	}
@@ -87,7 +81,7 @@ func TestDefaultConfig(t *testing.T) {
 func TestNilHooksDoNotPanic(t *testing.T) {
 	hooks := Hooks{} // all nil
 	// Simulate what handleMessage does when hooks are nil
-	ev := ClusterEvent{Type: EventReputationSignal, IP: "2.2.2.2", Weight: 50}
+	ev := ClusterEvent{IP: "2.2.2.2"}
 	if hooks.OnReputationSignal != nil {
 		hooks.OnReputationSignal(ev.IP, "waf", "test", 35)
 	}
@@ -96,9 +90,7 @@ func TestNilHooksDoNotPanic(t *testing.T) {
 
 // TestClusterDisabled verifies disabled cluster has zero stats
 func TestStatsZeroOnInit(t *testing.T) {
-	status := ClusterStatus{
-		Enabled: false,
-	}
+	status := ClusterStatus{}
 	if status.Published != 0 || status.Received != 0 {
 		t.Error("Expected zero stats on init")
 	}

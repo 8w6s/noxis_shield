@@ -67,9 +67,10 @@ func (l *AccessLogger) ServeHTTP(ctx *fasthttp.RequestCtx) {
 	status := ctx.Response.StatusCode()
 	
 	action := "passed"
-	if status == fasthttp.StatusForbidden || status == fasthttp.StatusTooManyRequests {
+	switch status {
+	case fasthttp.StatusForbidden, fasthttp.StatusTooManyRequests:
 		action = "blocked"
-	} else if status == fasthttp.StatusServiceUnavailable {
+	case fasthttp.StatusServiceUnavailable:
 		action = "challenged"
 	}
 

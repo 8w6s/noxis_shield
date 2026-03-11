@@ -78,10 +78,6 @@ type mockRedis struct {
 	fail bool // if true, Set() returns error
 }
 
-func newMockRedis() *mockRedis {
-	return &mockRedis{data: make(map[string]string)}
-}
-
 // TestBlockRollback verifies that if Redis.Set fails, the shield block is rolled back.
 // This ensures shield and Redis stay consistent when writes partially fail.
 func TestBlockRollback(t *testing.T) {

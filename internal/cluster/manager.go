@@ -105,7 +105,7 @@ func (m *Manager) Start(ctx context.Context) {
 			if !ok {
 				return
 			}
-			m.handleMessage(ctx, msg.Payload)
+			m.handleMessage(msg.Payload)
 		}
 	}
 }
@@ -124,7 +124,7 @@ func (m *Manager) GetStatus() ClusterStatus {
 
 // handleMessage decodes and dispatches a received cluster event.
 // Events from this node itself are silently dropped to prevent loops.
-func (m *Manager) handleMessage(ctx context.Context, payload string) {
+func (m *Manager) handleMessage(payload string) {
 	var ev ClusterEvent
 	if err := json.Unmarshal([]byte(payload), &ev); err != nil {
 		log.Printf("[Cluster] Failed to decode event: %v", err)

@@ -39,6 +39,6 @@ func (o *bpfObjects) Close() error {
 
 // loadBpfObjects loads the compiled BPF objects into the kernel.
 // Stub — replaced by bpf2go generated version after `go generate`.
-func loadBpfObjects(obj *bpfObjects, _ *ebpf.CollectionOptions) error {
+func loadBpfObjects(_ *bpfObjects, _ *ebpf.CollectionOptions) error {
 	return nil
 }
