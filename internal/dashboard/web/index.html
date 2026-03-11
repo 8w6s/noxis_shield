@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Noxis Engine | Shield Dashboard</title>
-    <!-- Modern Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Noxis Shield | Operator Dashboard v1</title>
+    <meta name="description" content="Noxis Shield operator-grade traffic defense dashboard with real-time metrics and control plane.">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <!-- Chart.js for premium graphing -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
     <div class="background-effects">
         <div class="gradient-sphere sphere-1"></div>
@@ -19,71 +19,404 @@
     <div class="dashboard-container">
         <header class="navbar glass-panel">
             <div class="logo">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span>Noxis Engine</span>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <span>Noxis Shield</span>
+                <span class="version-tag">v1.0</span>
             </div>
-            <div class="status-indicator">
-                <div class="pulse-dot" id="statusDot"></div>
-                <span id="statusText">Connecting...</span>
+            <div class="header-center">
+                <div id="defenseModeBadge" class="mode-badge mode-normal">🟢 NORMAL</div>
+            </div>
+            <div class="header-right">
+                <div class="uptime-display">
+                    <span class="uptime-label">UPTIME</span>
+                    <span id="uptimeDisplay">--:--:--</span>
+                </div>
+                <div class="status-indicator">
+                    <div class="pulse-dot" id="statusDot"></div>
+                    <span id="statusText">Connecting...</span>
+                </div>
             </div>
         </header>
 
-        <main class="grid-container">
-            <!-- Top Stats -->
-            <div class="stat-card glass-panel fade-in" style="animation-delay: 0.1s;">
-                <h3>Current Data Flow</h3>
-                <div class="value highlight-blue" id="valRps">0 <span class="unit">req/s</span></div>
-            </div>
-            
-            <div class="stat-card glass-panel fade-in" style="animation-delay: 0.2s;">
-                <h3>Total Intercepted</h3>
-                <div class="value highlight-red" id="valBlocked">0</div>
-            </div>
-            
-            <div class="stat-card glass-panel fade-in" style="animation-delay: 0.3s;">
-                <h3>Active Connections</h3>
-                <div class="value highlight-green" id="valConns">0</div>
-            </div>
-            
-            <div class="stat-card glass-panel fade-in" style="animation-delay: 0.4s;">
-                <h3>Layer 1 Drops (eBPF)</h3>
-                <div class="value" id="valEbpf">0</div>
-            </div>
+        <!-- Tab Navigation -->
+        <nav class="tab-nav glass-panel">
+            <button class="tab-btn active" data-tab="monitoring">Monitoring</button>
+            <button class="tab-btn" data-tab="actions">Control Panel</button>
+            <button class="tab-btn" data-tab="blocklist">IP Blocklist</button>
+            <button class="tab-btn" data-tab="waf">WAF Engine</button>
+        </nav>
 
-            <!-- Main Graph Area -->
-            <div class="graph-card glass-panel fade-in" style="animation-delay: 0.5s;">
-                <h3>Real-time Traffic Anatomy</h3>
-                <div class="chart-wrapper">
-                    <canvas id="trafficChart"></canvas>
+        <!-- ============================================================
+             TAB: MONITORING
+             ============================================================ -->
+        <div class="tab-content active" id="tab-monitoring">
+            <!-- Row 1: Core Stats -->
+            <div class="grid-container">
+                <div class="stat-card glass-panel fade-in" style="animation-delay: 0.1s;">
+                    <h3>Current RPS</h3>
+                    <div class="value highlight-blue" id="valRps">0 <span class="unit">req/s</span></div>
+                    <div class="stat-sub" id="valPeakRps">Peak: 0 req/s</div>
+                </div>
+                <div class="stat-card glass-panel fade-in" style="animation-delay: 0.2s;">
+                    <h3>Total Intercepted</h3>
+                    <div class="value highlight-red" id="valBlocked">0</div>
+                    <div class="stat-sub" id="valBlockRate">Block Rate: 0%</div>
+                </div>
+                <div class="stat-card glass-panel fade-in" style="animation-delay: 0.3s;">
+                    <h3>Passed Through</h3>
+                    <div class="value highlight-green" id="valPassed">0</div>
+                    <div class="stat-sub" id="valConns">Active Connections: 0</div>
+                </div>
+                <div class="stat-card glass-panel fade-in" style="animation-delay: 0.4s;">
+                    <h3>Layer 1 Drops (eBPF)</h3>
+                    <div class="value" id="valEbpf">0</div>
+                    <div class="stat-sub" id="valBanned">Banned IPs: 0</div>
                 </div>
             </div>
 
-            <!-- Attack Events Feed -->
-            <div class="events-card glass-panel fade-in" style="animation-delay: 0.6s;">
+            <!-- Row 2: Defense State + Active Mitigations + Subsystem Health -->
+            <div class="info-row">
+                <!-- Defense State Card -->
+                <div class="info-card glass-panel fade-in" id="defenseStateCard" style="animation-delay: 0.45s;">
+                    <div class="info-card-header">
+                        <h3>Defense State</h3>
+                        <span id="defenseModeLabel" class="mode-badge mode-normal">NORMAL</span>
+                    </div>
+                    <div class="info-card-body">
+                        <div class="defense-detail"><span class="detail-label">Mode</span><span id="defenseModeText" class="detail-value">normal</span></div>
+                        <div class="defense-detail"><span class="detail-label">Since</span><span id="defenseModeSince" class="detail-value">—</span></div>
+                        <div class="defense-detail"><span class="detail-label">Z-Score Anomaly</span><span id="defenseZscore" class="detail-value">—</span></div>
+                    </div>
+                </div>
+
+                <!-- Active Mitigations Card -->
+                <div class="info-card glass-panel fade-in" style="animation-delay: 0.5s;">
+                    <div class="info-card-header">
+                        <h3>Mitigations</h3>
+                    </div>
+                    <div class="mitigation-grid">
+                        <div class="mitigation-item" id="mit-shield">
+                            <span class="mit-icon"></span>
+                            <span class="mit-name">Shield</span>
+                            <span class="mit-status" id="mitigationShield">—</span>
+                        </div>
+                        <div class="mitigation-item" id="mit-redis">
+                            <span class="mit-icon"></span>
+                            <span class="mit-name">Redis</span>
+                            <span class="mit-status" id="mitigationRedis">—</span>
+                        </div>
+                        <div class="mitigation-item" id="mit-waf">
+                            <span class="mit-icon"></span>
+                            <span class="mit-name">WAF</span>
+                            <span class="mit-status" id="mitigationWAF">—</span>
+                        </div>
+                        <div class="mitigation-item" id="mit-upstreams">
+                            <span class="mit-icon"></span>
+                            <span class="mit-name">Upstreams</span>
+                            <span class="mit-status" id="mitigationUpstreams">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Subsystem Health Card -->
+                <div class="info-card glass-panel fade-in" style="animation-delay: 0.55s;">
+                    <div class="info-card-header">
+                        <h3>Subsystem Health</h3>
+                    </div>
+                    <div class="health-grid">
+                        <div class="health-badge" id="healthShield">
+                            <span class="badge-dot"></span>
+                            <span class="badge-label">Shield</span>
+                            <span class="badge-value" id="healthShieldVal">—</span>
+                        </div>
+                        <div class="health-badge" id="healthRedis">
+                            <span class="badge-dot"></span>
+                            <span class="badge-label">Redis</span>
+                            <span class="badge-value" id="healthRedisVal">—</span>
+                        </div>
+                        <div class="health-badge" id="healthWAF">
+                            <span class="badge-dot"></span>
+                            <span class="badge-label">WAF</span>
+                            <span class="badge-value" id="healthWAFVal">—</span>
+                        </div>
+                        <div class="health-badge" id="healthUpstreams">
+                            <span class="badge-dot"></span>
+                            <span class="badge-label">Upstreams</span>
+                            <span class="badge-value" id="healthUpstreamsVal">—</span>
+                        </div>
+                        <div class="health-badge" id="healthReconciler">
+                            <span class="badge-dot"></span>
+                            <span class="badge-label">Reconciler</span>
+                            <span class="badge-value" id="healthReconcilerVal">—</span>
+                        </div>
+                        <div class="health-badge" id="healthDefense">
+                            <span class="badge-dot"></span>
+                            <span class="badge-label">DefenseMode</span>
+                            <span class="badge-value" id="healthDefenseVal">—</span>
+                        </div>
+                        <div class="health-badge" id="healthCluster" style="display: none;">
+                            <span class="badge-dot"></span>
+                            <span class="badge-label">Cluster</span>
+                            <span class="badge-value" id="healthClusterVal">—</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="grid-container" style="margin-top: 0;">
+                <div class="graph-card glass-panel fade-in" style="animation-delay: 0.6s;">
+                    <h3>Real-time Traffic Anatomy</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="trafficChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="graph-card glass-panel fade-in" style="animation-delay: 0.65s;">
+                    <h3>Passed vs Blocked (Last 60s)</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="splitChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Row: Events & Offenders -->
+            <div class="bottom-grid fade-in" style="animation-delay: 0.7s;">
+                <!-- Events Feed -->
+                <div class="events-card glass-panel" style="flex: 2;">
+                    <div class="card-header">
+                        <h3>Shield Telemetry Log</h3>
+                        <div class="card-header-actions">
+                            <input type="text" id="logFilter" placeholder="Filter events..." class="filter-input">
+                            <button class="action-btn-sm" onclick="exportLogs()">⬇ Export</button>
+                        </div>
+                    </div>
+                    <div class="table-container" style="max-height: 250px;">
+                        <table id="eventsTable">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Severity</th>
+                                    <th>Module</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="eventsBody">
+                                <tr><td colspan="4" class="text-center text-muted">Awaiting stream...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Top Offenders V2 -->
+                <div class="offenders-card glass-panel" style="flex: 1.2;">
+                    <div class="card-header">
+                        <h3>Top Offenders</h3>
+                    </div>
+                    <div class="table-container" style="max-height: 250px;">
+                        <table id="offendersTable">
+                            <thead>
+                                <tr>
+                                    <th>IP Address</th>
+                                    <th>Score</th>
+                                    <th>Source</th>
+                                    <th>Last Seen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="offendersBody">
+                                <tr><td colspan="4" class="text-center text-muted">No threats detected</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================
+             TAB: CONTROL PANEL
+             ============================================================ -->
+        <div class="tab-content" id="tab-actions">
+            <div class="actions-grid">
+                <!-- Defense Mode Selector -->
+                <div class="action-card glass-panel fade-in" style="animation-delay:0s">
+                    <div class="action-icon" id="modeControlIcon"></div>
+                    <h3>Defense Mode Control</h3>
+                    <p class="action-desc">Manually override the current defense posture. The anomaly detector may override this automatically.</p>
+                    <div class="mode-selector">
+                        <button class="mode-btn mode-normal-btn" onclick="setDefenseMode('normal')">Normal</button>
+                        <button class="mode-btn mode-elevated-btn" onclick="setDefenseMode('elevated')">Elevated</button>
+                        <button class="mode-btn mode-attack-btn" onclick="setDefenseMode('under_attack')">Under Attack</button>
+                        <button class="mode-btn mode-recovery-btn" onclick="setDefenseMode('recovery')">Recovery</button>
+                    </div>
+                    <div class="action-result" id="modeResult"></div>
+                </div>
+
+                <!-- Shield Resync -->
+                <div class="action-card glass-panel fade-in" style="animation-delay:0.05s">
+                    <div class="action-icon info"></div>
+                    <h3>Shield Resync</h3>
+                    <p class="action-desc">Force a Redis ↔ Shield state reconciliation. Clears stale blocks and restores missing ones from the source of truth.</p>
+                    <div class="action-form">
+                        <button class="action-btn info" onclick="resyncShield()">Trigger Resync Now</button>
+                    </div>
+                    <div class="action-result" id="resyncResult"></div>
+                </div>
+
+                <!-- Block IP -->
+                <div class="action-card glass-panel fade-in" style="animation-delay:0.1s">
+                    <div class="action-icon danger"></div>
+                    <h3>Block IP Address</h3>
+                    <p class="action-desc">Immediately add an IP to the Redis blocklist and Layer 1 shield.</p>
+                    <div class="action-form">
+                        <input type="text" id="blockIpInput" placeholder="e.g. 192.168.1.100" class="action-input">
+                        <input type="text" id="blockReasonInput" placeholder="Reason (optional)" class="action-input">
+                        <button class="action-btn danger" onclick="blockIP()">Block IP</button>
+                    </div>
+                    <div class="action-result" id="blockResult"></div>
+                </div>
+
+                <!-- Unblock IP -->
+                <div class="action-card glass-panel fade-in" style="animation-delay:0.15s">
+                    <div class="action-icon warning"></div>
+                    <h3>Unblock IP Address</h3>
+                    <p class="action-desc">Remove an IP from the blocklist and Layer 1 shield filter.</p>
+                    <div class="action-form">
+                        <input type="text" id="unblockIpInput" placeholder="e.g. 192.168.1.100" class="action-input">
+                        <button class="action-btn warning" onclick="unblockIP()">Unblock IP</button>
+                    </div>
+                    <div class="action-result" id="unblockResult"></div>
+                </div>
+
+                <!-- Whitelist IP -->
+                <div class="action-card glass-panel fade-in" style="animation-delay:0.2s">
+                    <div class="action-icon success"></div>
+                    <h3>Whitelist IP Address</h3>
+                    <p class="action-desc">Permanently allow an IP to bypass all checks — even during attacks.</p>
+                    <div class="action-form">
+                        <input type="text" id="whitelistIpInput" placeholder="e.g. 10.0.0.1" class="action-input">
+                        <button class="action-btn success" onclick="whitelistIP()">Add to Whitelist</button>
+                    </div>
+                    <div class="action-result" id="whitelistResult"></div>
+                </div>
+
+                <!-- Clear All -->
+                <div class="action-card glass-panel fade-in" style="animation-delay:0.25s">
+                    <div class="action-icon info"></div>
+                    <h3>Clear All Blocked IPs</h3>
+                    <p class="action-desc">Remove ALL IPs from the blocklist in one action. Use with caution during live incidents.</p>
+                    <div class="action-form">
+                        <button class="action-btn info" onclick="clearAll()">Clear Entire Blocklist</button>
+                    </div>
+                    <div class="action-result" id="clearResult"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================
+             TAB: IP BLOCKLIST
+             ============================================================ -->
+        <div class="tab-content" id="tab-blocklist">
+            <div class="blocklist-container glass-panel">
                 <div class="card-header">
-                    <h3>Shield Telemetry Log</h3>
-                    <span class="badge" id="bannedCount">0 banned IPs</span>
+                    <h3>🚫 Active Blocked IPs</h3>
+                    <div class="card-header-actions">
+                        <input type="text" id="blocklistFilter" placeholder="Search IPs..." class="filter-input" oninput="filterBlocklist()">
+                        <button class="action-btn-sm danger" onclick="clearAll()">Clear All</button>
+                        <button class="action-btn-sm" onclick="refreshBlocklist()">↺ Refresh</button>
+                    </div>
                 </div>
                 <div class="table-container">
-                    <table id="eventsTable">
+                    <table id="blocklistTable">
                         <thead>
                             <tr>
-                                <th>Time</th>
-                                <th>Event Type</th>
-                                <th>Details</th>
+                                <th>IP Address</th>
+                                <th>Reason / Source</th>
+                                <th>Enforcement</th>
+                                <th>Blocked At</th>
+                                <th>Expires At</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="eventsBody">
-                            <tr>
-                                <td colspan="3" class="text-center text-muted">Awaiting stream...</td>
-                            </tr>
+                        <tbody id="blocklistBody">
+                            <tr><td colspan="6" class="text-center text-muted">Loading...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
-        </main>
+        </div>
+
+        <!-- ============================================================
+             TAB: WAF ENGINE
+             ============================================================ -->
+        <div class="tab-content" id="tab-waf">
+            <div class="waf-container">
+                <!-- WAF Toggle Card -->
+                <div class="action-card glass-panel fade-in" style="flex: 0 0 auto; max-width: 400px;">
+                    <div class="action-icon" id="wafStatusIcon">🛡️</div>
+                    <h3>WAF Engine Control</h3>
+                    <p class="action-desc">Toggle the OWASP Regex Engine on/off without restarting Noxis.</p>
+                    <div class="waf-toggle-row">
+                        <span id="wafStatusLabel">Loading...</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="wafToggle" onchange="toggleWAF()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="waf-stats-row">
+                        <div class="waf-stat"><span class="waf-stat-label">Total WAF Blocks</span><span class="waf-stat-value highlight-red" id="wafTotalBlocks">—</span></div>
+                        <div class="waf-stat"><span class="waf-stat-label">Session Hits</span><span class="waf-stat-value" id="wafSessionHits">—</span></div>
+                    </div>
+                    <div class="action-result" id="wafToggleResult"></div>
+                </div>
+
+                <!-- WAF Info Card -->
+                <div class="action-card glass-panel fade-in" style="animation-delay:0.1s; flex: 1;">
+                    <div class="action-icon info">📋</div>
+                    <h3>Protection Coverage</h3>
+                    <p class="action-desc">Active OWASP CRS rules loaded at startup.</p>
+                    <div class="waf-rules-grid">
+                        <div class="waf-rule-chip danger">SQLi <span>6 rules</span></div>
+                        <div class="waf-rule-chip warning">XSS <span>4 rules</span></div>
+                        <div class="waf-rule-chip danger">RCE <span>4 rules</span></div>
+                        <div class="waf-rule-chip warning">LFI <span>3 rules</span></div>
+                        <div class="waf-rule-chip info">SSRF <span>1 rule</span></div>
+                        <div class="waf-rule-chip info">RFI <span>1 rule</span></div>
+                        <div class="waf-rule-chip success">Scanner <span>1 rule</span></div>
+                        <div class="waf-rule-chip success">Protocol <span>3 rules</span></div>
+                    </div>
+                    <p class="waf-total">Total: <strong>23 active rules</strong> (Paranoia Level 1)</p>
+                </div>
+
+                <!-- WAF Pipeline Position Card -->
+                <div class="action-card glass-panel fade-in" style="animation-delay:0.2s; flex: 1;">
+                    <div class="action-icon success">🔗</div>
+                    <h3>Pipeline Position</h3>
+                    <p class="action-desc">WAF sits at the optimal point to maximize CPU efficiency.</p>
+                    <div class="pipeline-viz">
+                        <div class="pipeline-step">📋 Blocklist</div>
+                        <div class="pipeline-arrow">↓</div>
+                        <div class="pipeline-step">🎭 IP Reputation</div>
+                        <div class="pipeline-arrow">↓</div>
+                        <div class="pipeline-step">🧩 JS PoW Challenge</div>
+                        <div class="pipeline-arrow">↓</div>
+                        <div class="pipeline-step">⏱️ Rate Limiter</div>
+                        <div class="pipeline-arrow">↓</div>
+                        <div class="pipeline-step">📝 Policy DSL</div>
+                        <div class="pipeline-arrow">↓</div>
+                        <div class="pipeline-step waf-active">🛡️ OWASP WAF ← HERE</div>
+                        <div class="pipeline-arrow">↓</div>
+                        <div class="pipeline-step">📡 Anomaly Detector</div>
+                        <div class="pipeline-arrow">↓</div>
+                        <div class="pipeline-step success-step">🚀 Upstream Backends</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>
 </body>
+
 </html>

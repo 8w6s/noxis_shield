@@ -1,0 +1,2 @@
+internal\shield\ebpf_linux.go:13:2: no required module provides package github.com/cilium/ebpf/link; to add it:
+	go get github.com/cilium/ebpf/link

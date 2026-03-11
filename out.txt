@@ -1,0 +1,6 @@
+﻿=== RUN   TestAccessLogger
+    testing.go:1369: TempDir RemoveAll cleanup: unlinkat C:\Users\FUJITSU\AppData\Local\Temp\TestAccessLogger3478671210\001\access_test.log: The process cannot access the file because it is being used by another process.
+--- FAIL: TestAccessLogger (1.83s)
+FAIL
+FAIL	github.com/8w6s/noxis/internal/logger	2.067s
+FAIL

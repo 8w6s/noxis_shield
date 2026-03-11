@@ -20,8 +20,9 @@ type userspaceShield struct {
 }
 
 // New creates a new instance of the Userspace shield driver.
-func New() Shield {
+func New(synRateLimit int) Shield {
 	log.Println("[Shield] Selected Driver: Go Userspace (Platform-agnostic Fallback)")
+	// Userspace shield doesn't implement synRateLimit yet, dropping it.
 	return &userspaceShield{}
 }
 
@@ -60,4 +61,15 @@ func (s *userspaceShield) RecordDrop(ip string) {
 
 func (s *userspaceShield) GetDropCount() int64 {
 	return s.dropCount.Load()
+}
+
+// ListBlocked returns a snapshot of all IPs currently blocked in the userspace shield.
+// Used by the reconciliation worker to diff against Redis source of truth.
+func (s *userspaceShield) ListBlocked() []string {
+	var ips []string
+	s.blockedIPs.Range(func(k, _ any) bool {
+		ips = append(ips, k.(string))
+		return true
+	})
+	return ips
 }

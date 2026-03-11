@@ -1,12 +1,30 @@
 server:
   listen: ":8080"            # Port nhận traffic từ internet
-  upstream: "http://localhost:3000"  # App của người dùng
+  upstreams:                 # Array of backend applications
+    - "http://localhost:3000"
+    - "http://localhost:3001"
   dashboard_port: ":9090"    # WebSocket cho dashboard
   metrics_port: ":2112"      # Prometheus scrape endpoint
   admin_port: "127.0.0.1:9091" # Admin management API (Localhost only)
 
 shield:
   mode: "auto"               # auto | ebpf | userspace
+
+protection:
+  challenge:
+    enabled: true            # Use JS PoW to challenge visitors occasionally
+    pow_difficulty: 5        # Number of leading zeros required for PoW hash
+    cookie_ttl: 3600         # How long to remember verified clients (seconds)
+    cookie_secret: "12345678901234567890123456789012" # 32 byte secret for HMAC
+
+alerts:
+  discord:
+    enabled: true
+    webhook_url: ""          # PASTE DISCORD WEBHOOK URL HERE
+
+waf:
+  enabled: true
+  paranoia_level: 1          # 1: Low, 4: Highest False Positives
 
 redis:
   addr: "127.0.0.1:6379"
@@ -24,6 +42,9 @@ blocklist:
   abuseipdb_key: ""          # API key AbuseIPDB (để trống nếu không dùng)
   abuseipdb_threshold: 50    # Score 0-100, block nếu trên ngưỡng này
 
+reputation:
+  block_threshold: 6.0       # Behavior DataBlock: Cấm vĩnh viễn IP nếu Score vượt ngưỡng
+
 anomaly:
   baseline_window_minutes: 60  # Học baseline trong 60 phút đầu
   zscore_threshold: 3.0        # Trigger alert khi vượt 3 standard deviations
@@ -37,3 +58,32 @@ ebpf:
 log:
   level: "info"               # debug | info | warn | error
   format: "json"
+  access_log_path: "logs/access.log"
+
+# Cluster Plane — Optional multi-node signal sharing via Redis Pub/Sub
+# Disabled by default. Enable on each node to form a cluster.
+cluster:
+  enabled: false
+  node_id: ""                      # auto-generated UUID if empty
+  channel: "noxis:cluster:events"  # Redis Pub/Sub channel name
+  import_weight: 0.7               # Scale factor for imported signal weights (0.0-1.0)
+  pre_apply_blocks: false          # If true, auto-apply remote IP blocks locally
+  trust_level: "medium"            # weak | medium | strong
+
+tls:
+  enabled: false
+  domains:
+    - "example.com"
+  email: "admin@example.com"
+
+cgnat:
+  trusted_proxies:
+    - "127.0.0.1"
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+  extract_headers:
+    - "CF-Connecting-IP"
+    - "X-Forwarded-For"
+    - "X-Real-IP"
+  fallback_fingerprint: true

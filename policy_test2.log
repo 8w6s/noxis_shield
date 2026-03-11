@@ -1,0 +1,4 @@
+# github.com/8w6s/noxis/internal/policy [github.com/8w6s/noxis/internal/policy.test]
+internal\policy\handler.go:6:2: "net/http" imported and not used
+FAIL	github.com/8w6s/noxis/internal/policy [build failed]
+FAIL

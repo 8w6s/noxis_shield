@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  mango-shield:
+    build: .
+    container_name: mango-shield
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+      - "9090:9090"
+    volumes:
+      - ./config:/app/config:ro
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+    cap_add:
+      - NET_ADMIN # Required for iptables
+    networks:
+      - shield-net
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:9090/api/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+networks:
+  shield-net:
+    driver: bridge

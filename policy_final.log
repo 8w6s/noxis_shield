@@ -1,0 +1,13 @@
+=== RUN   TestEngine_Evaluate_Match
+2026/03/11 22:06:15 [Policy] Loaded Rule: Block PHP (block)
+2026/03/11 22:06:15 [Policy] Loaded Rule: Block Bad IP (block)
+    engine_test.go:40: Expected to match rule 'Block PHP', got nil
+--- FAIL: TestEngine_Evaluate_Match (0.00s)
+=== RUN   TestEngine_Evaluate_ComplexExpression
+2026/03/11 22:06:15 [Policy] Loaded Rule: Complex Auth bypass block (challenge)
+--- PASS: TestEngine_Evaluate_ComplexExpression (0.00s)
+=== RUN   TestEngine_Load_DisabledRule
+--- PASS: TestEngine_Load_DisabledRule (0.00s)
+FAIL
+FAIL	github.com/8w6s/noxis/internal/policy	0.133s
+FAIL

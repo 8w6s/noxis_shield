@@ -1,0 +1,4 @@
+# github.com/8w6s/noxis/internal/shield [github.com/8w6s/noxis/internal/shield.test]
+internal\shield\userspace_test.go:8:8: undefined: NewUserspaceShield
+FAIL	github.com/8w6s/noxis/internal/shield [build failed]
+FAIL

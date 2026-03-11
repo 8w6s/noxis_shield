@@ -1,0 +1,8 @@
+..\..\..\go\pkg\mod\github.com\valyala\fasthttp@v1.55.0\compress.go:10:2: missing go.sum entry for module providing package github.com/klauspost/compress/flate (imported by github.com/valyala/fasthttp); to add:
+	go get github.com/valyala/fasthttp@v1.55.0
+..\..\..\go\pkg\mod\github.com\valyala\fasthttp@v1.55.0\compress.go:11:2: missing go.sum entry for module providing package github.com/klauspost/compress/gzip (imported by github.com/valyala/fasthttp); to add:
+	go get github.com/valyala/fasthttp@v1.55.0
+..\..\..\go\pkg\mod\github.com\valyala\fasthttp@v1.55.0\compress.go:12:2: missing go.sum entry for module providing package github.com/klauspost/compress/zlib (imported by github.com/valyala/fasthttp); to add:
+	go get github.com/valyala/fasthttp@v1.55.0
+..\..\..\go\pkg\mod\github.com\valyala\fasthttp@v1.55.0\fs.go:21:2: missing go.sum entry for module providing package github.com/klauspost/compress/zstd (imported by github.com/valyala/fasthttp); to add:
+	go get github.com/valyala/fasthttp@v1.55.0

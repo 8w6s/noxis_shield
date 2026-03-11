@@ -1,0 +1,27 @@
+[Unit]
+Description=Mango Shield - L7 DDoS Protection & WAF
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/mango-shield
+ExecStart=/opt/mango-shield/mango-shield -config /opt/mango-shield/config/deploy.yaml
+Restart=always
+RestartSec=5
+
+# Security
+LimitNOFILE=65535
+LimitNPROC=4096
+
+# Environment
+Environment=GOMAXPROCS=0
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mango-shield
+
+[Install]
+WantedBy=multi-user.target

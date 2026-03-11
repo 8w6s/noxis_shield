@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/8w6s/noxis/internal/defense"
 )
 
 // Detector monitors global traffic and identifies volumetric anomalies using Z-Score.
@@ -22,13 +24,14 @@ type Detector struct {
 	// Callbacks
 	OnAttackDetected func(rps float64, zscore float64)
 	OnAttackResolved func(duration time.Duration)
+	OnTick           func(rps float64)
 
-	isUnderAttack bool
-	attackStart   time.Time
+	defenseManager *defense.Manager
+	attackStart    time.Time
 }
 
 // New creates a new anomaly detector.
-func New(baselineWindowMinutes int, zscoreThreshold float64) *Detector {
+func New(baselineWindowMinutes int, zscoreThreshold float64, defManager *defense.Manager) *Detector {
 	windowSize := baselineWindowMinutes * 60
 	if windowSize <= 0 {
 		windowSize = 3600 // Default 1 hour
@@ -41,6 +44,7 @@ func New(baselineWindowMinutes int, zscoreThreshold float64) *Detector {
 		windowSize:      windowSize,
 		minSamples:      60, // requires at least 1 minute of data to build a baseline
 		zScoreThreshold: zscoreThreshold,
+		defenseManager:  defManager,
 	}
 
 	return d
@@ -64,6 +68,10 @@ func (d *Detector) RecordHit() {
 func (d *Detector) tick() {
 	rps := float64(d.currentRPS.Swap(0)) // Get and reset the counter atomically
 
+	if d.OnTick != nil {
+		d.OnTick(rps)
+	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -84,8 +92,9 @@ func (d *Detector) tick() {
 
 		// Detect Attack
 		if zscore > d.zScoreThreshold {
-			if !d.isUnderAttack {
-				d.isUnderAttack = true
+			currentMode := d.defenseManager.GetMode()
+			if currentMode != defense.ModeUnderAttack {
+				d.defenseManager.SetMode(defense.ModeUnderAttack, "high anomaly z-score detected")
 				d.attackStart = time.Now()
 				if d.OnAttackDetected != nil {
 					go d.OnAttackDetected(rps, zscore)
@@ -93,13 +102,21 @@ func (d *Detector) tick() {
 			}
 		} else {
 			// Resolve Attack if it drops back below threshold
-			if d.isUnderAttack {
-				// Only resolve if it stays stable for a bit? For simplicity, we resolve immediately.
-				d.isUnderAttack = false
+			currentMode := d.defenseManager.GetMode()
+			if currentMode == defense.ModeUnderAttack {
+				d.defenseManager.SetMode(defense.ModeRecovery, "anomaly z-score normalized")
 				duration := time.Since(d.attackStart)
 				if d.OnAttackResolved != nil {
 					go d.OnAttackResolved(duration)
 				}
+
+				// Start a cooldown goroutine to eventually move from recovery to normal
+				go func() {
+					time.Sleep(5 * time.Minute) // 5 minutes recovery cooldown
+					if d.defenseManager.GetMode() == defense.ModeRecovery {
+						d.defenseManager.SetMode(defense.ModeNormal, "recovery period completed")
+					}
+				}()
 			}
 		}
 	} else if len(d.samples) == 0 {

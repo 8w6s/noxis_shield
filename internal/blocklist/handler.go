@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/8w6s/noxis/internal/proxy"
+	"github.com/8w6s/noxis/internal/utils"
 	"github.com/valyala/fasthttp"
 )
 
@@ -18,7 +19,7 @@ func NewHandler(manager *Manager) proxy.Handler {
 
 func (h *blocklistHandler) Process(ctx *fasthttp.RequestCtx) bool {
 	// RemoteIP returns the client's IP parsed perfectly by fasthttp
-	ip := ctx.RemoteIP().String()
+	ip := utils.GetClientIP(ctx)
 
 	// 1. Check if the IP is whitelisted
 	if h.manager.IsWhitelisted(context.Background(), ip) {

@@ -1,0 +1,2 @@
+# github.com/8w6s/noxis/cmd/noxis
+cmd\noxis\main.go:215:15: cannot use polHandler (variable of type *policy.Handler) as "github.com/8w6s/noxis/internal/proxy".Handler value in argument to pipeline.Use: *policy.Handler does not implement "github.com/8w6s/noxis/internal/proxy".Handler (missing method Name)

@@ -1,0 +1,18 @@
+?   	github.com/8w6s/noxis/internal/admin	[no test files]
+?   	github.com/8w6s/noxis/internal/alerts	[no test files]
+?   	github.com/8w6s/noxis/internal/anomaly	[no test files]
+ok  	github.com/8w6s/noxis/internal/blocklist	(cached)
+# github.com/8w6s/noxis/internal/challenge
+internal\challenge\manager.go:46:22: fmt.Sprintf format %s has arg difficulty of wrong type int
+FAIL	github.com/8w6s/noxis/internal/challenge [build failed]
+?   	github.com/8w6s/noxis/internal/dashboard	[no test files]
+?   	github.com/8w6s/noxis/internal/defense	[no test files]
+?   	github.com/8w6s/noxis/internal/metrics	[no test files]
+ok  	github.com/8w6s/noxis/internal/proxy	(cached)
+ok  	github.com/8w6s/noxis/internal/ratelimit	(cached)
+?   	github.com/8w6s/noxis/internal/reputation	[no test files]
+ok  	github.com/8w6s/noxis/internal/shield	(cached)
+ok  	github.com/8w6s/noxis/internal/signals	(cached)
+?   	github.com/8w6s/noxis/internal/waf	[no test files]
+?   	github.com/8w6s/noxis/internal/websocket	[no test files]
+FAIL

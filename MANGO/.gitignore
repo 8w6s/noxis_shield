@@ -1,0 +1,49 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+mango-shield
+mango-cli
+test-site/server_linux
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with Litmus
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Python virtual environment
+venv/
+.venv/
+env/
+.env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project specific
+test-site/server.log
+test-site/server.go.back
+*.log
+
+# Sensitive config (Keep templates, ignore actual nodes)
+# config/node-*.yaml
+# But usually we keep them if they are just examples with placeholders.
+# The user already replaced tokens with placeholders.
+server_linux

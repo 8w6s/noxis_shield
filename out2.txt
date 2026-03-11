@@ -1,0 +1,2 @@
+﻿FAIL	github.com/8w6s/noxis/internal/logger [build failed]
+FAIL

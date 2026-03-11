@@ -1,0 +1,8 @@
+# github.com/8w6s/noxis/internal/policy [github.com/8w6s/noxis/internal/policy.test]
+internal\policy\handler.go:6:2: "net/http" imported and not used
+internal\policy\handler.go:49:24: too many arguments in call to h.sigEngine.Emit
+	have (string, signals.Signal)
+	want (signals.Signal)
+internal\policy\handler.go:51:4: unknown field Score in struct literal of type signals.Signal
+FAIL	github.com/8w6s/noxis/internal/policy [build failed]
+FAIL

@@ -19,6 +19,10 @@ type Shield interface {
 	// GetDropCount returns the total number of packets/connections dropped by the shield.
 	GetDropCount() int64
 
+	// ListBlocked returns all IPs currently blocked in the shield's in-memory state.
+	// Used by the reconciliation worker to diff against Redis source of truth.
+	ListBlocked() []string
+
 	// Start initializes the shield (e.g., loads eBPF program or starts userspace listener).
 	Start() error
 

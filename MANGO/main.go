@@ -1,0 +1,289 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"runtime"
+	"syscall"
+	"time"
+
+	"mango-waf/api"
+	"mango-waf/cluster"
+	"mango-waf/config"
+	"mango-waf/core"
+	"mango-waf/detection"
+	"mango-waf/fingerprint"
+	"mango-waf/intelligence"
+	"mango-waf/logger"
+	"mango-waf/perf"
+	"mango-waf/rules"
+)
+
+var (
+	version   = "2.0.0"
+	buildDate = "dev"
+)
+
+func main() {
+	configPath := flag.String("config", "config/default.yaml", "Đường dẫn file cấu hình")
+	showVersion := flag.Bool("version", false, "Hiển thị phiên bản")
+	showHelp := flag.Bool("help", false, "Hiển thị trợ giúp")
+	flag.Parse()
+
+	if *showHelp {
+		printBanner()
+		flag.Usage()
+		os.Exit(0)
+	}
+
+	if *showVersion {
+		fmt.Printf("Mango Shield v%s (build: %s, go: %s)\n", version, buildDate, runtime.Version())
+		os.Exit(0)
+	}
+
+	printBanner()
+
+	// === 1. Load Configuration ===
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[LỖI] Không thể tải cấu hình: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("  ✓ Cấu hình đã tải: %s\n", *configPath)
+
+	// === 2. Initialize Logger ===
+	if err := logger.Init(cfg.Logging.Level, cfg.Logging.Format, cfg.Logging.File); err != nil {
+		fmt.Fprintf(os.Stderr, "[LỖI] Khởi tạo logger thất bại: %v\n", err)
+		os.Exit(1)
+	}
+	defer logger.Close()
+	fmt.Printf("  ✓ Logger khởi tạo: level=%s, format=%s\n", cfg.Logging.Level, cfg.Logging.Format)
+
+	// === 3. Configure Runtime ===
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	fmt.Printf("  ✓ Runtime: GOMAXPROCS=%d\n", runtime.NumCPU())
+
+	// === 4. Initialize Fingerprint Engine ===
+	fingerprint.InitKnownBrowsers()
+	fingerprint.InitKnownH2Fingerprints()
+	fpStore := fingerprint.NewFingerprintStore()
+	fmt.Println("  ✓ Fingerprint engine: JA3/JA4/H2 databases loaded")
+
+	// === 5. Initialize Intelligence Layer ===
+	intel := intelligence.NewIntel(cfg)
+	defer intel.Close()
+	fmt.Println("  ✓ Intelligence layer: GeoIP, Reputation, ASN, Feeds")
+
+	// === 6. Initialize Detection Engine ===
+	detEngine := detection.NewEngine(cfg)
+	behaviorAnalyzer := detection.NewBehaviorAnalyzer()
+	botClassifier := detection.NewBotClassifier()
+	attackDetector := detection.NewAttackDetector()
+	adaptiveLearner := detection.NewAdaptiveLearner()
+	fmt.Println("  ✓ Detection engine: Behavior, Bot Classifier, Attack Detector, Adaptive")
+
+	// === 7. Initialize WAF Rules Engine ===
+	wafEngine := rules.NewEngine(cfg)
+	if cfg.WAF.CustomRulesPath != "" {
+		if err := wafEngine.LoadCustomRules(cfg.WAF.CustomRulesPath); err != nil {
+			logger.Warn("Custom WAF rules load failed", "error", err)
+		}
+	}
+	fmt.Printf("  ✓ WAF engine: %d rules loaded (paranoia=%d)\n", len(wafEngine.GetRules()), cfg.WAF.ParanoiaLevel)
+
+	// === 8. Initialize Performance Manager ===
+	memMgr := perf.NewMemoryManager(2048) // 2GB max
+	rateLimiter := perf.NewIPRateLimiter(
+		float64(cfg.Protection.RateLimit.RequestsPerSecond),
+		float64(cfg.Protection.RateLimit.Burst),
+	)
+	degrader := perf.NewGracefulDegrader()
+	fmt.Println("  ✓ Performance: Rate Limiter, Memory Manager, Graceful Degradation")
+
+	// === 9. Initialize CDN Smart Cache ===
+	if err := core.InitCDN(cfg.CDN); err != nil {
+		logger.Warn("Failed to initialize CDN", "error", err)
+	} else if cfg.CDN.Enabled {
+		fmt.Println("  ✓ CDN Caching Engine enabled (Ristretto)")
+	}
+
+	// === 10. Create Shield Server & Wire All Engines ===
+	um := core.NewUpstreamManager(cfg)
+	defer um.Close()
+
+	shield := core.New(cfg)
+	shield.SetFingerprintStore(fpStore)
+	shield.SetIntel(intel)
+	shield.SetDetectionEngine(detEngine)
+	shield.SetBehaviorAnalyzer(behaviorAnalyzer)
+	shield.SetBotClassifier(botClassifier)
+	shield.SetAttackDetector(attackDetector)
+	shield.SetAdaptiveLearner(adaptiveLearner)
+	shield.SetWAFEngine(wafEngine)
+	shield.SetRateLimiter(rateLimiter)
+	shield.SetGracefulDegrader(degrader)
+	shield.SetUpstreamManager(um)
+	fmt.Printf("  ✓ Shield server: domains=%d, mode=%s (ALL engines wired)\n", len(cfg.Domains), cfg.Protection.Mode)
+
+	// === 11. Initialize Mango P2P Mesh ===
+	if err := cluster.InitMesh(cfg.Cluster, func(ip string, duration time.Duration) {
+		shield.GetPipeline().BanIPRemote(ip, duration)
+	}, func(alertType string) {
+		shield.GetPipeline().GetAlerts().RemoteSilence(alertType)
+	}); err != nil {
+		logger.Warn("Failed to initialize Mango Mesh", "error", err)
+	} else if cfg.Cluster.Enabled {
+		fmt.Printf("  ✓ Mango P2P Mesh enabled: Node %s (Port %d)\n", cfg.Cluster.NodeName, cfg.Cluster.BindPort)
+	}
+
+	// Keep memory manager reference alive (it runs its own goroutine)
+	_ = memMgr
+
+	// === 11. Start Dashboard API ===
+	if cfg.Dashboard.Enabled {
+		statsAdapter := &api.StatsAdapter{
+			TotalReqs:   &shield.GetStats().TotalRequests,
+			BlockedReqs: &shield.GetStats().BlockedRequests,
+			PassedReqs:  &shield.GetStats().PassedRequests,
+			CurrRPS:     &shield.GetStats().CurrentRPS,
+			PkRPS:       &shield.GetStats().PeakRPS,
+			ActiveCn:    &shield.GetStats().ActiveConns,
+			BannedIP:    &shield.GetStats().BannedIPs,
+			AttacksDet:  &shield.GetStats().AttacksDetected,
+			UnderAttack: &shield.GetStats().IsUnderAttack,
+			UptimeStart: shield.GetStats().Uptime,
+			XDP:         shield.GetXDPStats,
+			EarlyStats:  fingerprint.GetEarlyRejectStats,
+			CDNStats:    core.GetCDN().GetStats,
+			MeshStats: func() (bool, int) {
+				m := cluster.GetMesh()
+				if m == nil {
+					return false, 0
+				}
+				return true, m.NumMembers()
+			},
+			MeshMembers: func() []cluster.NodeInfo {
+				m := cluster.GetMesh()
+				if m == nil {
+					return []cluster.NodeInfo{}
+				}
+				return m.GetMembers()
+			},
+		}
+		dashboard := api.NewDashboard(cfg, statsAdapter)
+		go func() {
+			if err := dashboard.Start(); err != nil {
+				logger.Error("Dashboard failed", "error", err)
+			}
+		}()
+		fmt.Printf("  ✓ Dashboard API: http://%s\n", cfg.Dashboard.Listen)
+	}
+
+	// === 12. Start Metrics Endpoint ===
+	if cfg.Metrics.Enabled {
+		go func() {
+			mux := http.NewServeMux()
+			mux.HandleFunc(cfg.Metrics.Path, func(w http.ResponseWriter, r *http.Request) {
+				stats := shield.GetStats()
+				uptime := time.Since(stats.Uptime).Seconds()
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				fmt.Fprintf(w, "# HELP mango_requests_total Total requests processed\n")
+				fmt.Fprintf(w, "# TYPE mango_requests_total counter\n")
+				fmt.Fprintf(w, "mango_requests_total %d\n", stats.TotalRequests)
+				fmt.Fprintf(w, "# HELP mango_requests_blocked Total blocked requests\n")
+				fmt.Fprintf(w, "# TYPE mango_requests_blocked counter\n")
+				fmt.Fprintf(w, "mango_requests_blocked %d\n", stats.BlockedRequests)
+				fmt.Fprintf(w, "# HELP mango_requests_passed Total passed requests\n")
+				fmt.Fprintf(w, "# TYPE mango_requests_passed counter\n")
+				fmt.Fprintf(w, "mango_requests_passed %d\n", stats.PassedRequests)
+				fmt.Fprintf(w, "# HELP mango_rps_current Current requests per second\n")
+				fmt.Fprintf(w, "# TYPE mango_rps_current gauge\n")
+				fmt.Fprintf(w, "mango_rps_current %d\n", stats.CurrentRPS)
+				fmt.Fprintf(w, "# HELP mango_rps_peak Peak RPS\n")
+				fmt.Fprintf(w, "# TYPE mango_rps_peak gauge\n")
+				fmt.Fprintf(w, "mango_rps_peak %d\n", stats.PeakRPS)
+				fmt.Fprintf(w, "# HELP mango_active_connections Current active connections\n")
+				fmt.Fprintf(w, "# TYPE mango_active_connections gauge\n")
+				fmt.Fprintf(w, "mango_active_connections %d\n", stats.ActiveConns)
+				fmt.Fprintf(w, "# HELP mango_banned_ips Total banned IPs\n")
+				fmt.Fprintf(w, "# TYPE mango_banned_ips gauge\n")
+				fmt.Fprintf(w, "mango_banned_ips %d\n", stats.BannedIPs)
+				fmt.Fprintf(w, "# HELP mango_attacks_detected Total attacks detected\n")
+				fmt.Fprintf(w, "# TYPE mango_attacks_detected counter\n")
+				fmt.Fprintf(w, "mango_attacks_detected %d\n", stats.AttacksDetected)
+				fmt.Fprintf(w, "# HELP mango_uptime_seconds Uptime in seconds\n")
+				fmt.Fprintf(w, "# TYPE mango_uptime_seconds gauge\n")
+				fmt.Fprintf(w, "mango_uptime_seconds %.0f\n", uptime)
+				// WAF stats
+				wafStats := wafEngine.GetStats()
+				fmt.Fprintf(w, "# HELP mango_waf_inspected Total WAF inspected requests\n")
+				fmt.Fprintf(w, "# TYPE mango_waf_inspected counter\n")
+				fmt.Fprintf(w, "mango_waf_inspected %v\n", wafStats["total_inspected"])
+				fmt.Fprintf(w, "# HELP mango_waf_blocked Total WAF blocked requests\n")
+				fmt.Fprintf(w, "# TYPE mango_waf_blocked counter\n")
+				fmt.Fprintf(w, "mango_waf_blocked %v\n", wafStats["total_blocked"])
+				// Memory stats
+				memStats := memMgr.GetMemStats()
+				fmt.Fprintf(w, "# HELP mango_memory_alloc_mb Allocated memory in MB\n")
+				fmt.Fprintf(w, "# TYPE mango_memory_alloc_mb gauge\n")
+				fmt.Fprintf(w, "mango_memory_alloc_mb %v\n", memStats["alloc_mb"])
+				fmt.Fprintf(w, "# HELP mango_goroutines Number of goroutines\n")
+				fmt.Fprintf(w, "# TYPE mango_goroutines gauge\n")
+				fmt.Fprintf(w, "mango_goroutines %v\n", memStats["goroutines"])
+			})
+			server := &http.Server{Addr: cfg.Metrics.Listen, Handler: mux}
+			logger.Info("Metrics endpoint started", "listen", cfg.Metrics.Listen, "path", cfg.Metrics.Path)
+			fmt.Printf("  ✓ Metrics: http://%s%s\n", cfg.Metrics.Listen, cfg.Metrics.Path)
+			if err := server.ListenAndServe(); err != nil {
+				logger.Error("Metrics server failed", "error", err)
+			}
+		}()
+	}
+
+	// === 11. Graceful Shutdown ===
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+
+	go func() {
+		for sig := range sigCh {
+			switch sig {
+			case syscall.SIGHUP:
+				logger.Info("SIGHUP received — hot reload config")
+				if err := config.Reload(*configPath); err != nil {
+					logger.Error("Config reload failed", "error", err)
+				} else {
+					logger.Info("Config reloaded successfully")
+				}
+			case syscall.SIGINT, syscall.SIGTERM:
+				logger.Info("Shutdown signal received, stopping...")
+				fmt.Println("\n🛑 Đang dừng Mango Shield...")
+				shield.Stop()
+				intel.Close()
+				logger.Info("Mango Shield stopped gracefully")
+				os.Exit(0)
+			}
+		}
+	}()
+
+	// === 13. Start Server ===
+	fmt.Println("\n🥭 Mango Shield v2.0 — Đang bảo vệ!")
+	fmt.Printf("   HTTPS: %s | HTTP: %s\n", cfg.Server.Listen, cfg.Server.HTTPListen)
+	fmt.Println("   Nhấn Ctrl+C để dừng, gửi SIGHUP để tải lại cấu hình")
+
+	if err := shield.Start(); err != nil {
+		logger.Fatal("Server khởi động thất bại", "error", err)
+	}
+}
+
+func printBanner() {
+	fmt.Println(`
+  ╔══════════════════════════════════════╗
+  ║         🥭 MANGO SHIELD v2.0         ║
+  ║       L7 DDoS Protection & WAF       ║
+  ║      github.com/hoangtuvungcao       ║
+  ╚══════════════════════════════════════╝`)
+	fmt.Println()
+}

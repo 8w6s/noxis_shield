@@ -1,0 +1,8 @@
+# github.com/8w6s/noxis/internal/proxy [github.com/8w6s/noxis/internal/proxy.test]
+internal\proxy\pipeline_test.go:4:2: "fmt" imported and not used
+internal\proxy\pipeline_test.go:40:29: undefined: shield.NewUserspaceShield
+internal\proxy\pipeline_test.go:63:29: not enough arguments in call to pipeline.doUpstreamRequest
+	have (*fasthttp.RequestCtx)
+	want (*fasthttp.Request, *fasthttp.Response)
+FAIL	github.com/8w6s/noxis/internal/proxy [build failed]
+FAIL

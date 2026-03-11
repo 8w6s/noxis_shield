@@ -4,8 +4,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/8w6s/noxis/internal/anomaly"
+	"github.com/8w6s/noxis/internal/cluster"
+	"github.com/8w6s/noxis/internal/defense"
 	"github.com/8w6s/noxis/internal/shield"
+	"github.com/8w6s/noxis/internal/signals"
 )
 
 // Global stats that are pushed to the dashboard
@@ -19,8 +21,27 @@ type Stats struct {
 	BannedIPs         int64         `json:"bannedIPs"`
 	ActiveConnections int64         `json:"activeConnections"`
 	EbpfDrops         int64         `json:"ebpfDrops"`
-	Status            string        `json:"status"`
-	RecentEvents      []AttackEvent `json:"recentEvents"`
+	Status            string                  `json:"status"`
+	Health            SubsystemHealth         `json:"health"`
+	RecentEvents      []AttackEvent           `json:"recentEvents"`
+	TopOffenders      []signals.OffenderEntry `json:"topOffenders"`
+}
+
+// SubsystemHealth holds the status of all core components.
+type SubsystemHealth struct {
+	ShieldState       string `json:"shieldState"`
+	RedisReachable    bool   `json:"redisReachable"`
+	WAFEnabled        bool   `json:"wafEnabled"`
+	UpstreamsActive   int    `json:"upstreamsActive"`
+	UpstreamsTotal    int    `json:"upstreamsTotal"`
+	ReconcilerLastRun int64  `json:"reconcilerLastRun"`
+	DefenseMode       string `json:"defenseMode"`
+	// Cluster fields (zero-value when cluster not enabled)
+	ClusterEnabled   bool   `json:"clusterEnabled"`
+	ClusterNodeID    string `json:"clusterNodeId,omitempty"`
+	ClusterPublished int64  `json:"clusterPublished,omitempty"`
+	ClusterReceived  int64  `json:"clusterReceived,omitempty"`
+	ClusterNodeCount int    `json:"clusterNodeCount,omitempty"`
 }
 
 type AttackEvent struct {
@@ -41,12 +62,20 @@ type Aggregator struct {
 	status     string
 	events     []AttackEvent
 
-	detector *anomaly.Detector
-	shield   shield.Shield
+	shield    shield.Shield
+	sigEngine *signals.Engine // Optional reference to fetch real-time Top Offenders
+
+	// Dependencies for health checks
+	getRedisHealth     func() bool
+	getWAFEnabled      func() bool
+	getUpstreamHealth  func() (active, total int)
+	getReconcilerState func() int64
+	getDefenseMode     func() defense.Mode
+	getClusterStatus   func() cluster.ClusterStatus
 }
 
 // New creates a new Metrics Aggregator
-func New(detector *anomaly.Detector, shield shield.Shield) *Aggregator {
+func New(shield shield.Shield) *Aggregator {
 	a := &Aggregator{
 		TotalReqs: &atomic.Int64{},
 		Blocked:   &atomic.Int64{},
@@ -55,10 +84,37 @@ func New(detector *anomaly.Detector, shield shield.Shield) *Aggregator {
 		PeakRPS:   &atomic.Value{},
 		status:    "normal",
 		events:    make([]AttackEvent, 0),
-		detector:  detector,
 		shield:    shield,
 	}
 	a.PeakRPS.Store(0.0)
+	return a
+}
+
+// WithSignals allows injecting the unified signal engine to fetch real-time offenders
+func (a *Aggregator) WithSignals(e *signals.Engine) *Aggregator {
+	a.sigEngine = e
+	return a
+}
+
+// WithHealthChecks injects functions needed to query subsystem health at snapshot time.
+func (a *Aggregator) WithHealthChecks(
+	redisHealth func() bool,
+	wafEnabled func() bool,
+	upstreamHealth func() (active, total int),
+	reconcilerState func() int64,
+	defenseMode func() defense.Mode,
+) *Aggregator {
+	a.getRedisHealth = redisHealth
+	a.getWAFEnabled = wafEnabled
+	a.getUpstreamHealth = upstreamHealth
+	a.getReconcilerState = reconcilerState
+	a.getDefenseMode = defenseMode
+	return a
+}
+
+// WithCluster injects the cluster status callback
+func (a *Aggregator) WithCluster(fn func() cluster.ClusterStatus) *Aggregator {
+	a.getClusterStatus = fn
 	return a
 }
 
@@ -117,18 +173,59 @@ func (a *Aggregator) AddEvent(eventType, detail string) {
 
 // CompileSnapshot gathers all metrics into a single struct suitable for JSON export
 func (a *Aggregator) CompileSnapshot() Stats {
+	ebpfDrops := a.shield.GetDropCount()
+	// Fetch top 5 offenders directly from in-memory engine (if attached)
+	var topOffenders []signals.OffenderEntry
+	if a.sigEngine != nil {
+		topOffenders = a.sigEngine.GetTopOffenders(5)
+	}
+
+	shieldState := "attached"
+	if _, ok := a.shield.(interface{ IsUserspace() bool }); ok {
+		shieldState = "userspace_fallback"
+	}
+
+	health := SubsystemHealth{
+		ShieldState: shieldState,
+	}
+
+	if a.getRedisHealth != nil {
+		health.RedisReachable = a.getRedisHealth()
+	}
+	if a.getWAFEnabled != nil {
+		health.WAFEnabled = a.getWAFEnabled()
+	}
+	if a.getUpstreamHealth != nil {
+		health.UpstreamsActive, health.UpstreamsTotal = a.getUpstreamHealth()
+	}
+	if a.getReconcilerState != nil {
+		health.ReconcilerLastRun = a.getReconcilerState()
+	}
+	if a.getDefenseMode != nil {
+		health.DefenseMode = string(a.getDefenseMode())
+	}
+	if a.getClusterStatus != nil {
+		cStat := a.getClusterStatus()
+		health.ClusterEnabled = cStat.Enabled
+		health.ClusterNodeID = cStat.NodeID
+		health.ClusterPublished = cStat.Published
+		health.ClusterReceived = cStat.Received
+		health.ClusterNodeCount = len(cStat.NodesSeen)
+	}
+
 	return Stats{
 		Timestamp:         time.Now().UnixMilli(),
 		CurrentRPS:        a.currentRPS,
 		PeakRPS:           a.PeakRPS.Load().(float64),
-		TotalRequests:     a.TotalReqs.Load(),
-		Blocked:           a.Blocked.Load() + a.shield.GetDropCount(),
+		TotalRequests:     a.TotalReqs.Load() + ebpfDrops,
+		Blocked:           a.Blocked.Load() + ebpfDrops,
 		Passed:            a.Passed.Load(),
 		ActiveConnections: a.ActiveC.Load(),
-		EbpfDrops:         a.shield.GetDropCount(),
+		EbpfDrops:         ebpfDrops,
 		Status:            a.status,
+		Health:            health,
 		RecentEvents:      a.events,
-		// BannedIPs would be fetched asynchronously from Redis in a real hook
-		BannedIPs: 0,
+		TopOffenders:      topOffenders,
+		BannedIPs:         0,
 	}
 }
