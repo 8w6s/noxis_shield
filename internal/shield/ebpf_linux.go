@@ -133,6 +133,14 @@ func (s *ebpfShield) IsBlocked(ip string) bool {
 	return false
 }
 
+// ListBlocked returns IPs tracked at the userspace level.
+// eBPF-blocked IPs live in the kernel map and are not enumerable from userspace here;
+// only userspace-recorded drops are tracked via dropCount. Return empty to signal that
+// the reconciler should rely on Redis as source of truth for eBPF mode.
+func (s *ebpfShield) ListBlocked() []string {
+	return []string{}
+}
+
 func (s *ebpfShield) RecordDrop(ip string) {
 	// This function might be called by the userspace layer if eBPF misses (e.g. proxy logic block)
 	s.dropCount.Add(1)

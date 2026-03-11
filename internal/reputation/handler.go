@@ -1,7 +1,6 @@
 package reputation
 
 import (
-	"fmt"
 	"log"
 	"time"
 
@@ -39,7 +38,7 @@ func (h *reputationHandler) Process(ctx *fasthttp.RequestCtx) bool {
 			h.sigEngine.Emit(signals.Signal{
 				IP:       ip,
 				Source:   "reputation",
-				Reason:   fmt.Sprintf("behavioral abuse score exceeded"),
+				Reason:   "behavioral abuse score exceeded",
 				Severity: signals.SeverityCritical,
 				Weight:   signals.WeightReputationCritical,
 				Timestamp: time.Now(),

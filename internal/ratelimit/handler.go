@@ -2,7 +2,6 @@ package ratelimit
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
 
@@ -42,7 +41,7 @@ func (h *rateLimitHandler) Process(ctx *fasthttp.RequestCtx) bool {
 		h.sigEngine.Emit(signals.Signal{
 			IP:        ip,
 			Source:    "ratelimit",
-			Reason:    fmt.Sprintf("subnet /24 pressure"),
+			Reason:    "subnet /24 pressure",
 			Severity:  signals.SeverityLow,
 			Weight:    signals.WeightSubnetPressure,
 			Timestamp: now,
