@@ -184,8 +184,6 @@ function updateDashboard(stats) {
     valRps.innerHTML = `${instantRps} <span class="unit">req/s</span>`;
     if (valPeakRps) valPeakRps.textContent = `Peak: ${peakRPS} req/s`;
 
-    const blocked = stats.blocked || 0;
-    const passed = stats.passed || 0;
     const total = blocked + passed;
     const blockRate = total > 0 ? ((blocked / total) * 100).toFixed(1) : '0.0';
 
